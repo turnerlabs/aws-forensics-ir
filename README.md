@@ -10,13 +10,13 @@ Hopefully you've already enabled CloudTrail, don't use root and root AWS Access 
 ## Tools and documents included
 
 ### Documents
-* [How to prepare and secure your AWS Account]
-* [How to monitor for an AWS Account compromise]
-* [What to do immediately after being notified of a compromise]
-* [Cleanup Tasks]
+* [How to prepare and secure your AWS Account](Prepare.md)
+* [How to monitor for an AWS Account compromise](Detect.md)
+* [What to do immediately after being notified of a compromise](Response-Runbook.md)
+* [Cleanup Tasks](Remediate-Runbook.md)
 
 ### Tools
-* Cloud Formation template to create an [immutable evidence bucket]
+* Cloud Formation template to create an [immutable evidence bucket](cloudformation/EvidenceBucket.yaml)
 * Capture [CloudTrail Events]
 * Capture [S3 Bucket Policies]
 * Capture [EC2 Instance & Volume Info](bin/inventory_assets.py)
