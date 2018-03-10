@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy A KMS Secured, Immutable Bucket for evidence collection
+
+Parameters:
+
+  pSecureBucketName:
+    Description: Name of the Secure Bucket
+    Type: String
+
+  pCompromisedAccountId:
+    Description: AccountId of the Account to collect evidence for.
+    Type: String
+
+Resources:
+
+  # Create the Bucket
+  SecureBucket:
+    Type: AWS::S3::Bucket
+    # Keep the bucket if we delete the stack.
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+      BucketName: !Ref pSecureBucketName
+      VersioningConfiguration:
+        # Add Versioning. Always safe vs sorry
+        Status: Enabled
+      ## This has to be disabled for now due to a bug in Cloudformation
+      ## which causes stack creation to fail with the following message:
+      ## A conflicting conditional operation is currently in progress against this resource. Please try again.
+      BucketEncryption:
+        # Require all objects placed into this bucket to be encrypted with our key
+        ServerSideEncryptionConfiguration:       
+          - ServerSideEncryptionByDefault:
+              KMSMasterKeyID: !Ref KMSKey
+              SSEAlgorithm: "aws:kms"
+
+  SecureBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    DeletionPolicy: Retain
+    DependsOn: 
+      - SecureBucket
+      - KMSKey
+    Properties:
+      Bucket: !Ref pSecureBucketName
+      PolicyDocument:
+        Statement:
+        - Sid: "Deny All object deletions"
+          Effect: Deny
+          Action:
+            - "s3:Delete*"
+            # - "s3:PutBucket*"
+          Principal: "*"
+          Resource:
+            - !Sub "arn:aws:s3:::${pSecureBucketName}/*"
+            - !Sub "arn:aws:s3:::${pSecureBucketName}"
+        # This is a safeguard to prevent objects being uploaded due to the issue with
+        # ServerSideEncryptionConfiguration noted above. When the issue is resolved, this statement
+        # must be deleted to prevent conflicts. 
+        # - Sid: "Deny PutObject without encryption"
+        #   Effect: Deny
+        #   Action: 
+        #     - "s3:PutObject*"
+        #   Principal: "*"
+        #   Resource:
+        #     - !Sub "arn:aws:s3:::${pSecureBucketName}/*"
+        #   Condition:
+        #     StringNotEquals:
+        #       s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt KMSKey.Arn
+        - Sid: "Allow Compromised Account to put content in prefix"
+          Effect: Allow
+          Action: 
+            - "s3:PutObject*"
+          Principal: 
+            AWS: !Ref pCompromisedAccountId
+          Resource:
+            - !Sub "arn:aws:s3:::${pSecureBucketName}/AccountEvidence/*"
+
+
+
+
+  #
+  # KMS Resources
+  #
+  # First we create a key.
+  KMSKey:
+    Type: "AWS::KMS::Key"
+    DeletionPolicy: Retain
+    Properties:
+      Description: !Sub "Key to secure content in ${pSecureBucketName}"
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: "key-default-1"
+        Statement:
+          # This first statement will allow any user or role with kms:* in their IAM Policy the
+          # ability to do any operation (except Decrypt) on this key.
+          # This is necessary to allow for CF to update the role of the EC2 Instance that is
+          # allowed to use this key.
+          - Sid: "Allow Account administration of the key, but no Decrypt"
+            Effect: "Allow"
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            NotAction:
+              - "kms:ScheduleKeyDeletion"
+            Resource: "*"
+
+
+  # Then we give it an Alias
+  KMSKeyAlias:
+    Type: AWS::KMS::Alias
+    DeletionPolicy: Retain
+    Properties:
+      AliasName: !Sub "alias/${pSecureBucketName}"
+      TargetKeyId:
+        Ref: KMSKey
+
+
+Outputs:
+  KMSKeyId:
+    Description: Key ID of KMS Key Created
+    Value: !Ref KMSKey
+  MKSKeyArn:
+    Value: !GetAtt KMSKey.Arn
+  SecureBucket:
+    Value: !Ref SecureBucket
+
+## Note: You want to enable CloudTrail monitoring of this S3 Bucket too
+# aws cloudtrail get-event-selectors --trail-name Parent-CloudTrail
+# {
+#     "EventSelectors": [
+#         {
+#             "IncludeManagementEvents": true,
+#             "DataResources": [
+#                 {
+#                     "Values": [
+#                         "arn:aws:s3:::pSecureBucketName/"
+#                     ],
+#                     "Type": "AWS::S3::Object"
+#                 }
+#             ],
+#             "ReadWriteType": "All"
+#         }
+#     ],
+#     "TrailARN": "arn:aws:cloudtrail:us-east-1:123456789012:trail/Parent-CloudTrail"
+# }
+
+
+
+
+
