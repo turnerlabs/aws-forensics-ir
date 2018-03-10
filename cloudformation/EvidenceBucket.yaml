@@ -24,12 +24,9 @@ Resources:
       VersioningConfiguration:
         # Add Versioning. Always safe vs sorry
         Status: Enabled
-      ## This has to be disabled for now due to a bug in Cloudformation
-      ## which causes stack creation to fail with the following message:
-      ## A conflicting conditional operation is currently in progress against this resource. Please try again.
       BucketEncryption:
         # Require all objects placed into this bucket to be encrypted with our key
-        ServerSideEncryptionConfiguration:       
+        ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               KMSMasterKeyID: !Ref KMSKey
               SSEAlgorithm: "aws:kms"
@@ -37,28 +34,28 @@ Resources:
   SecureBucketPolicy:
     Type: "AWS::S3::BucketPolicy"
     DeletionPolicy: Retain
-    DependsOn: 
+    DependsOn:
       - SecureBucket
       - KMSKey
     Properties:
       Bucket: !Ref pSecureBucketName
       PolicyDocument:
         Statement:
-        - Sid: "Deny All object deletions"
+        - Sid: "Deny All object deletions and prevent updating bucket policy"
           Effect: Deny
           Action:
             - "s3:Delete*"
-            # - "s3:PutBucket*"
+            - "s3:PutBucket*"
           Principal: "*"
           Resource:
             - !Sub "arn:aws:s3:::${pSecureBucketName}/*"
             - !Sub "arn:aws:s3:::${pSecureBucketName}"
         # This is a safeguard to prevent objects being uploaded due to the issue with
         # ServerSideEncryptionConfiguration noted above. When the issue is resolved, this statement
-        # must be deleted to prevent conflicts. 
+        # must be deleted to prevent conflicts.
         # - Sid: "Deny PutObject without encryption"
         #   Effect: Deny
-        #   Action: 
+        #   Action:
         #     - "s3:PutObject*"
         #   Principal: "*"
         #   Resource:
@@ -68,9 +65,9 @@ Resources:
         #       s3:x-amz-server-side-encryption-aws-kms-key-id: !GetAtt KMSKey.Arn
         - Sid: "Allow Compromised Account to put content in prefix"
           Effect: Allow
-          Action: 
+          Action:
             - "s3:PutObject*"
-          Principal: 
+          Principal:
             AWS: !Ref pCompromisedAccountId
           Resource:
             - !Sub "arn:aws:s3:::${pSecureBucketName}/AccountEvidence/*"
@@ -95,7 +92,7 @@ Resources:
           # ability to do any operation (except Decrypt) on this key.
           # This is necessary to allow for CF to update the role of the EC2 Instance that is
           # allowed to use this key.
-          - Sid: "Allow Account administration of the key, but no Decrypt"
+          - Sid: "Allow Account administration of the key, but protect it from deletion"
             Effect: "Allow"
             Principal:
               AWS:
