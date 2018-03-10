@@ -84,17 +84,6 @@ def get_credential_report(iam_client):
 
 #####
 
-def get_investgator_identity():
-    client = boto3.client('sts')
-    response = client.get_caller_identity()
-    return(response['Arn'])
-
-def get_compromised_account_id(compromised_account_session):
-    client = compromised_account_session.client('sts')
-    response = client.get_caller_identity()
-    return(response['Account'])
-
-
 def do_args():
     import argparse
     parser = argparse.ArgumentParser()

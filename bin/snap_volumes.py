@@ -28,15 +28,6 @@ def main(args):
 
     exit(0)
 
-def get_regions(compromised_account_session):
-    ec2 = compromised_account_session.client('ec2')
-    response = ec2.describe_regions()
-    output = ['us-east-1']
-    for r in response['Regions']:
-        if r['RegionName'] == "us-east-1":
-            continue
-        output.append(r['RegionName'])
-    return(output)
 
 def get_volumes(region, compromised_account_session):
     output = []
